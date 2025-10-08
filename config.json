@@ -1,0 +1,36 @@
+{
+    "app": {
+        "name": "PCVitalBoost",
+        "version": "1.0.0",
+        "auto_update": true,
+        "check_update_on_startup": true
+    },
+    "features": {
+        "driver_updates": true,
+        "program_updates": true,
+        "system_optimization": true,
+        "system_cleanup": true,
+        "privacy_protection": true
+    },
+    "ui": {
+        "theme": "light",
+        "language": "pt_BR",
+        "show_notifications": true
+    },
+    "cleanup": {
+        "temp_files": true,
+        "cache_files": true,
+        "log_files": false,
+        "auto_cleanup": false
+    },
+    "optimization": {
+        "startup_optimization": true,
+        "memory_optimization": true,
+        "disk_optimization": false
+    },
+    "updates": {
+        "check_interval_hours": 24,
+        "auto_install": false,
+        "notify_available": true
+    }
+}
