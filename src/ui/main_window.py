@@ -51,7 +51,7 @@ class MainScreen(MDScreen):
         content.add_widget(info_card)
         
         # Botões de ação
-        actions_layout = GridLayout(cols=2, spacing=dp(10), size_hint_y=None, height=dp(200))
+        actions_layout = GridLayout(cols=2, spacing=dp(10), size_hint_y=None, height=dp(300))
         
         btn_update_drivers = MDRaisedButton(
             text="Atualizar Drivers",
@@ -76,6 +76,12 @@ class MainScreen(MDScreen):
             on_release=self.clean_system
         )
         actions_layout.add_widget(btn_clean)
+        
+        btn_import_dropbox = MDRaisedButton(
+            text="Importar do Dropbox",
+            on_release=self.import_from_dropbox
+        )
+        actions_layout.add_widget(btn_import_dropbox)
         
         content.add_widget(actions_layout)
         
@@ -174,6 +180,44 @@ Disco: {info['disk_usage']:.1f}% em uso
         
         total_mb = junk['total_size'] / (1024**2)
         self.results_label.text = f"Encontrados {total_mb:.2f} MB de arquivos desnecessários"
+    
+    def import_from_dropbox(self, instance):
+        """Importa arquivo do Dropbox"""
+        logger.info("Importando do Dropbox...")
+        self.results_label.text = "Conectando ao Dropbox..."
+        
+        try:
+            from src.modules import DropboxImporter
+            
+            # Cria instância do importador
+            importer = DropboxImporter()
+            
+            if not importer.is_authenticated():
+                self.results_label.text = "Autenticação necessária. Verifique o navegador..."
+                # Inicia processo de autenticação
+                if importer.authenticate():
+                    self.results_label.text = "Por favor, autorize o aplicativo no navegador e cole o código na próxima tela"
+                else:
+                    self.results_label.text = "Erro ao iniciar autenticação. Verifique DROPBOX_APP_KEY"
+            else:
+                # Já autenticado, lista arquivos
+                account_info = importer.get_account_info()
+                if account_info:
+                    self.results_label.text = f"Conectado como: {account_info['name']}\nListando arquivos..."
+                    files = importer.list_files()
+                    if files:
+                        self.results_label.text = f"Encontrados {len(files)} arquivos no Dropbox"
+                    else:
+                        self.results_label.text = "Nenhum arquivo encontrado no Dropbox"
+                else:
+                    self.results_label.text = "Erro ao obter informações da conta"
+                    
+        except ImportError as e:
+            logger.error(f"Erro ao importar módulo Dropbox: {e}")
+            self.results_label.text = "Dropbox SDK não instalado. Execute: pip install dropbox"
+        except Exception as e:
+            logger.error(f"Erro ao importar do Dropbox: {e}")
+            self.results_label.text = f"Erro: {str(e)}"
 
 
 class PCVitalBoostUI(MDApp):

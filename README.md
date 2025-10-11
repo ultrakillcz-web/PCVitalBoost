@@ -9,6 +9,7 @@ Aplicativo multiplataforma (PC, Android, iOS) para atualização de drivers/prog
 - **Atualização de Programas**: Mantém todos os seus programas atualizados
 - **Otimização de Desempenho**: Melhora a velocidade e eficiência do sistema
 - **Limpeza Inteligente**: Remove arquivos desnecessários e protege sua privacidade
+- **Importação do Dropbox**: Importe arquivos diretamente da nuvem 🆕
 - **Interface Intuitiva**: Design simples e fácil de usar
 - **Sem Anúncios**: 100% livre de propagandas
 - **Atualização Automática**: Mantém o aplicativo sempre atualizado
@@ -39,6 +40,13 @@ Aplicativo multiplataforma (PC, Android, iOS) para atualização de drivers/prog
 - Exclui logs antigos
 - Protege privacidade removendo dados sensíveis
 - Calcula espaço que pode ser liberado
+
+### 5. Importação do Dropbox 🆕
+- Importa arquivos diretamente do Dropbox
+- Autenticação segura via OAuth2
+- Lista e baixa arquivos da nuvem
+- Perfeito para importar configurações e backups
+- Veja [documentação completa](docs/DROPBOX_IMPORT.md)
 
 ## 🛠️ Instalação
 
