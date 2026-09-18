@@ -52,6 +52,9 @@ def check_programs(self) -> list
 ```
 Verifica programas instalados que possuem atualizações disponíveis.
 
+No Windows, a disponibilidade do `winget` é verificada sob demanda, na primeira
+verificação de programas, para não bloquear a inicialização do aplicativo.
+
 **Retorna:** Lista de programas que precisam de atualização.
 
 ```python
@@ -83,6 +86,9 @@ Inicializa o otimizador de sistema.
 def get_system_info(self) -> dict
 ```
 Obtém informações do sistema.
+
+A amostra de CPU é atualizada por um único monitor em segundo plano compartilhado
+pelas instâncias, portanto esta chamada não aguarda um intervalo de medição.
 
 **Retorna:** Dicionário com informações sobre CPU, memória, disco, etc.
 

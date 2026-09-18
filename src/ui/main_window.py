@@ -1,24 +1,19 @@
 """
 Interface de usuário do PCVitalBoost
 """
-from kivy.app import App
+import logging
+import threading
+
+from kivy.clock import Clock
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.progressbar import ProgressBar
 from kivymd.app import MDApp
 from kivymd.uix.card import MDCard
 from kivymd.uix.button import MDRaisedButton
 from kivymd.uix.label import MDLabel
 from kivymd.uix.screen import MDScreen
-from kivymd.uix.navigationdrawer import MDNavigationDrawer, MDNavigationLayout
 from kivymd.uix.toolbar import MDTopAppBar
-from kivymd.uix.list import MDList, OneLineIconListItem
 from kivy.metrics import dp
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -99,32 +94,85 @@ class MainScreen(MDScreen):
     
     def create_info_card(self):
         """Cria card com informações do sistema"""
-        from src.modules import SystemOptimizer
-        
-        optimizer = SystemOptimizer()
-        info = optimizer.get_system_info()
-        
         card = MDCard(
             orientation='vertical',
             padding=dp(15),
             size_hint_y=None,
             height=dp(150)
         )
-        
-        info_text = f"""
-Informações do Sistema:
-CPU: {info['cpu_count']} núcleos - {info['cpu_percent']:.1f}% em uso
-Memória: {info['total_memory']:.1f} GB - {info['memory_percent']:.1f}% em uso
-Disco: {info['disk_usage']:.1f}% em uso
-        """
-        
-        label = MDLabel(
-            text=info_text.strip(),
-            theme_text_color="Secondary"
-        )
+        label = MDLabel(text="Carregando informações do sistema...",
+                        theme_text_color="Secondary")
         card.add_widget(label)
-        
+        self._run_in_background(
+            self._get_system_info,
+            lambda info: self._set_system_info(label, info),
+            lambda error: self._show_error(label, "Erro ao carregar informações", error),
+        )
         return card
+
+    @staticmethod
+    def _get_system_info():
+        """Obtém informações do sistema fora da thread da interface."""
+        from src.modules import SystemOptimizer
+
+        return SystemOptimizer().get_system_info()
+
+    @staticmethod
+    def _set_system_info(label, info):
+        """Atualiza o card de informações na thread da interface."""
+        label.text = (
+            "Informações do Sistema:\n"
+            f"CPU: {info['cpu_count']} núcleos - {info['cpu_percent']:.1f}% em uso\n"
+            f"Memória: {info['total_memory']:.1f} GB - "
+            f"{info['memory_percent']:.1f}% em uso\n"
+            f"Disco: {info['disk_usage']:.1f}% em uso"
+        )
+
+    def _run_in_background(self, work, on_success, on_error):
+        """Executa uma operação demorada sem bloquear o thread da interface."""
+        def worker():
+            try:
+                result = work()
+            except Exception as error:
+                logger.error("Operação em segundo plano falhou", exc_info=True)
+                Clock.schedule_once(lambda _dt, error=error: on_error(error), 0)
+            else:
+                Clock.schedule_once(lambda _dt, result=result: on_success(result), 0)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @staticmethod
+    def _show_error(label, prefix, error):
+        """Exibe uma falha de operação de forma clara para o usuário."""
+        label.text = f"{prefix}: {error}"
+
+    @staticmethod
+    def _check_drivers():
+        """Verifica drivers fora da thread da interface."""
+        from src.modules import DriverUpdater
+
+        return DriverUpdater().check_drivers()
+
+    @staticmethod
+    def _check_programs():
+        """Verifica programas fora da thread da interface."""
+        from src.modules import ProgramUpdater
+
+        return ProgramUpdater().check_programs()
+
+    @staticmethod
+    def _optimize_memory():
+        """Analisa a memória fora da thread da interface."""
+        from src.modules import SystemOptimizer
+
+        return SystemOptimizer().optimize_memory()
+
+    @staticmethod
+    def _scan_for_junk():
+        """Escaneia arquivos fora da thread da interface."""
+        from src.modules import SystemCleaner
+
+        return SystemCleaner().scan_for_junk()
     
     def toggle_nav_drawer(self):
         """Alterna drawer de navegação"""
@@ -134,52 +182,58 @@ Disco: {info['disk_usage']:.1f}% em uso
         """Atualiza drivers do sistema"""
         logger.info("Atualizando drivers...")
         self.results_label.text = "Verificando drivers..."
-        
-        from src.modules import DriverUpdater
-        updater = DriverUpdater()
-        drivers = updater.check_drivers()
-        
-        if drivers:
-            self.results_label.text = f"Encontrados {len(drivers)} drivers para atualizar"
-        else:
-            self.results_label.text = "Todos os drivers estão atualizados!"
+        self._run_in_background(
+            self._check_drivers,
+            lambda drivers: setattr(
+                self.results_label,
+                "text",
+                f"Encontrados {len(drivers)} drivers para atualizar"
+                if drivers else "Todos os drivers estão atualizados!",
+            ),
+            lambda error: self._show_error(self.results_label, "Erro ao verificar drivers", error),
+        )
     
     def update_programs(self, instance):
         """Atualiza programas instalados"""
         logger.info("Atualizando programas...")
         self.results_label.text = "Verificando programas..."
-        
-        from src.modules import ProgramUpdater
-        updater = ProgramUpdater()
-        programs = updater.check_programs()
-        
-        if programs:
-            self.results_label.text = f"Encontrados {len(programs)} programas para atualizar"
-        else:
-            self.results_label.text = "Todos os programas estão atualizados!"
+        self._run_in_background(
+            self._check_programs,
+            lambda programs: setattr(
+                self.results_label,
+                "text",
+                f"Encontrados {len(programs)} programas para atualizar"
+                if programs else "Todos os programas estão atualizados!",
+            ),
+            lambda error: self._show_error(
+                self.results_label, "Erro ao verificar programas", error
+            ),
+        )
     
     def optimize_system(self, instance):
         """Otimiza o sistema"""
         logger.info("Otimizando sistema...")
         self.results_label.text = "Otimizando sistema..."
-        
-        from src.modules import SystemOptimizer
-        optimizer = SystemOptimizer()
-        result = optimizer.optimize_memory()
-        
-        self.results_label.text = result['message']
+        self._run_in_background(
+            self._optimize_memory,
+            lambda result: setattr(self.results_label, "text", result["message"]),
+            lambda error: self._show_error(self.results_label, "Erro ao otimizar sistema", error),
+        )
     
     def clean_system(self, instance):
         """Limpa arquivos desnecessários"""
         logger.info("Limpando sistema...")
         self.results_label.text = "Escaneando arquivos..."
-        
-        from src.modules import SystemCleaner
-        cleaner = SystemCleaner()
-        junk = cleaner.scan_for_junk()
-        
-        total_mb = junk['total_size'] / (1024**2)
-        self.results_label.text = f"Encontrados {total_mb:.2f} MB de arquivos desnecessários"
+        self._run_in_background(
+            self._scan_for_junk,
+            lambda junk: setattr(
+                self.results_label,
+                "text",
+                f"Encontrados {junk['total_size'] / (1024**2):.2f} MB "
+                "de arquivos desnecessários",
+            ),
+            lambda error: self._show_error(self.results_label, "Erro ao escanear arquivos", error),
+        )
     
     def import_from_dropbox(self, instance):
         """Importa arquivo do Dropbox"""

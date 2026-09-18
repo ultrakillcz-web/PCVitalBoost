@@ -1,18 +1,53 @@
 """
 Módulo de otimização de desempenho do sistema
 """
-import psutil
 import logging
+import threading
+import time
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
 
 class SystemOptimizer:
     """Classe responsável por otimizar o desempenho do sistema"""
-    
+
+    _cpu_lock = threading.Lock()
+    _cpu_percent = 0.0
+    _cpu_sampler_started = False
+
     def __init__(self):
-        pass
-        
+        self._start_cpu_sampler()
+
+    @classmethod
+    def _start_cpu_sampler(cls):
+        """Inicia um único amostrador de CPU compartilhado por todas as instâncias."""
+        with cls._cpu_lock:
+            if cls._cpu_sampler_started:
+                return
+            cls._cpu_sampler_started = True
+
+        sampler = threading.Thread(
+            target=cls._sample_cpu,
+            name="pcvitalboost-cpu-sampler",
+            daemon=True,
+        )
+        sampler.start()
+
+    @classmethod
+    def _sample_cpu(cls):
+        """Atualiza o uso de CPU periodicamente sem bloquear a interface."""
+        psutil.cpu_percent(interval=None)
+        while True:
+            try:
+                cpu_percent = psutil.cpu_percent(interval=1)
+                with cls._cpu_lock:
+                    cls._cpu_percent = cpu_percent
+            except (OSError, psutil.Error) as error:
+                logger.warning("Não foi possível amostrar o uso de CPU: %s", error)
+                time.sleep(1)
+
     def get_system_info(self):
         """
         Obtém informações do sistema
@@ -20,14 +55,21 @@ class SystemOptimizer:
         Returns:
             dict: Informações sobre CPU, memória, disco, etc.
         """
+        memory = psutil.virtual_memory()
         info = {
-            'cpu_percent': psutil.cpu_percent(interval=1),
-            'memory_percent': psutil.virtual_memory().percent,
+            'cpu_percent': self._get_cpu_percent(),
+            'memory_percent': memory.percent,
             'disk_usage': psutil.disk_usage('/').percent,
             'cpu_count': psutil.cpu_count(),
-            'total_memory': psutil.virtual_memory().total / (1024**3),  # GB
+            'total_memory': memory.total / (1024**3),  # GB
         }
         return info
+
+    @classmethod
+    def _get_cpu_percent(cls):
+        """Retorna a última amostra de CPU sem iniciar uma nova medição."""
+        with cls._cpu_lock:
+            return cls._cpu_percent
     
     def optimize_memory(self):
         """
