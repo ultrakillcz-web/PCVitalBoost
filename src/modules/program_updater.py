@@ -3,10 +3,15 @@ Módulo de atualização de programas
 """
 import platform
 import logging
+import re
 import shutil
 import subprocess
 
 logger = logging.getLogger(__name__)
+
+
+class ProgramCheckError(RuntimeError):
+    """Representa uma falha ao verificar atualizações de programas."""
 
 
 class ProgramUpdater:
@@ -51,8 +56,7 @@ class ProgramUpdater:
         """Verifica programas no Windows"""
         logger.info("Verificando programas Windows...")
         if not self.winget_available:
-            logger.info("winget não está disponível; ignorando verificação de programas.")
-            return []
+            raise ProgramCheckError("winget não está disponível neste computador")
 
         try:
             result = subprocess.run(
@@ -63,21 +67,30 @@ class ProgramUpdater:
                 check=False,
             )
             if result.returncode != 0:
-                logger.warning("winget retornou código %s", result.returncode)
-                return []
+                message = result.stderr.strip() or "winget retornou código %s" % result.returncode
+                raise ProgramCheckError(message)
             return self._parse_winget_upgrades(result.stdout)
         except (OSError, subprocess.SubprocessError) as error:
             logger.error("Erro ao verificar programas com winget: %s", error)
-            return []
+            raise ProgramCheckError("não foi possível executar o winget") from error
 
     @staticmethod
     def _parse_winget_upgrades(output):
-        """Extrai linhas de atualização do resultado textual do winget."""
-        return [
-            line.strip()
-            for line in output.splitlines()
-            if line.strip() and not line.startswith(("Name", "-", "Nenhum"))
-        ]
+        """Extrai somente linhas de dados da tabela retornada pelo winget."""
+        lines = iter(output.splitlines())
+        for line in lines:
+            if re.fullmatch(r"\s*-{3,}\s*", line):
+                break
+        else:
+            return []
+
+        upgrades = []
+        for line in lines:
+            columns = re.split(r"\s{2,}", line.strip())
+            if len(columns) < 4:
+                continue
+            upgrades.append(line.strip())
+        return upgrades
     
     def _check_linux_programs(self):
         """Verifica programas no Linux"""

@@ -14,6 +14,7 @@ class SystemOptimizer:
     """Classe responsável por otimizar o desempenho do sistema"""
 
     _cpu_lock = threading.Lock()
+    _cpu_sample_ready = threading.Event()
     _cpu_percent = 0.0
     _cpu_sampler_started = False
 
@@ -44,17 +45,24 @@ class SystemOptimizer:
                 cpu_percent = psutil.cpu_percent(interval=1)
                 with cls._cpu_lock:
                     cls._cpu_percent = cpu_percent
+                cls._cpu_sample_ready.set()
             except (OSError, psutil.Error) as error:
                 logger.warning("Não foi possível amostrar o uso de CPU: %s", error)
                 time.sleep(1)
 
-    def get_system_info(self):
+    def get_system_info(self, wait_for_cpu_sample=False):
         """
         Obtém informações do sistema
-        
+
+        Args:
+            wait_for_cpu_sample (bool): Aguarda a primeira amostra de CPU.
+
         Returns:
             dict: Informações sobre CPU, memória, disco, etc.
         """
+        if wait_for_cpu_sample:
+            self._cpu_sample_ready.wait(timeout=2)
+
         memory = psutil.virtual_memory()
         info = {
             'cpu_percent': self._get_cpu_percent(),

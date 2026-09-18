@@ -24,6 +24,7 @@ class MainScreen(MDScreen):
     def __init__(self, app_instance, **kwargs):
         super().__init__(**kwargs)
         self.app_instance = app_instance
+        self._current_operation = None
         self.build_ui()
         
     def build_ui(self):
@@ -115,7 +116,7 @@ class MainScreen(MDScreen):
         """Obtém informações do sistema fora da thread da interface."""
         from src.modules import SystemOptimizer
 
-        return SystemOptimizer().get_system_info()
+        return SystemOptimizer().get_system_info(wait_for_cpu_sample=True)
 
     @staticmethod
     def _set_system_info(label, info):
@@ -140,6 +141,29 @@ class MainScreen(MDScreen):
                 Clock.schedule_once(lambda _dt, result=result: on_success(result), 0)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _start_action(self, name, status_message, work, on_success, error_prefix):
+        """Inicia uma ação de manutenção e evita operações concorrentes."""
+        if self._current_operation is not None:
+            self.results_label.text = "Aguarde a conclusão da operação em andamento."
+            return
+
+        self._current_operation = name
+        self.results_label.text = status_message
+
+        def complete(result):
+            if self._current_operation != name:
+                return
+            self._current_operation = None
+            on_success(result)
+
+        def fail(error):
+            if self._current_operation != name:
+                return
+            self._current_operation = None
+            self._show_error(self.results_label, error_prefix, error)
+
+        self._run_in_background(work, complete, fail)
 
     @staticmethod
     def _show_error(label, prefix, error):
@@ -181,8 +205,9 @@ class MainScreen(MDScreen):
     def update_drivers(self, instance):
         """Atualiza drivers do sistema"""
         logger.info("Atualizando drivers...")
-        self.results_label.text = "Verificando drivers..."
-        self._run_in_background(
+        self._start_action(
+            "drivers",
+            "Verificando drivers...",
             self._check_drivers,
             lambda drivers: setattr(
                 self.results_label,
@@ -190,14 +215,15 @@ class MainScreen(MDScreen):
                 f"Encontrados {len(drivers)} drivers para atualizar"
                 if drivers else "Todos os drivers estão atualizados!",
             ),
-            lambda error: self._show_error(self.results_label, "Erro ao verificar drivers", error),
+            "Erro ao verificar drivers",
         )
     
     def update_programs(self, instance):
         """Atualiza programas instalados"""
         logger.info("Atualizando programas...")
-        self.results_label.text = "Verificando programas..."
-        self._run_in_background(
+        self._start_action(
+            "programas",
+            "Verificando programas...",
             self._check_programs,
             lambda programs: setattr(
                 self.results_label,
@@ -205,26 +231,26 @@ class MainScreen(MDScreen):
                 f"Encontrados {len(programs)} programas para atualizar"
                 if programs else "Todos os programas estão atualizados!",
             ),
-            lambda error: self._show_error(
-                self.results_label, "Erro ao verificar programas", error
-            ),
+            "Erro ao verificar programas",
         )
     
     def optimize_system(self, instance):
         """Otimiza o sistema"""
         logger.info("Otimizando sistema...")
-        self.results_label.text = "Otimizando sistema..."
-        self._run_in_background(
+        self._start_action(
+            "otimizacao",
+            "Otimizando sistema...",
             self._optimize_memory,
             lambda result: setattr(self.results_label, "text", result["message"]),
-            lambda error: self._show_error(self.results_label, "Erro ao otimizar sistema", error),
+            "Erro ao otimizar sistema",
         )
     
     def clean_system(self, instance):
         """Limpa arquivos desnecessários"""
         logger.info("Limpando sistema...")
-        self.results_label.text = "Escaneando arquivos..."
-        self._run_in_background(
+        self._start_action(
+            "limpeza",
+            "Escaneando arquivos...",
             self._scan_for_junk,
             lambda junk: setattr(
                 self.results_label,
@@ -232,7 +258,7 @@ class MainScreen(MDScreen):
                 f"Encontrados {junk['total_size'] / (1024**2):.2f} MB "
                 "de arquivos desnecessários",
             ),
-            lambda error: self._show_error(self.results_label, "Erro ao escanear arquivos", error),
+            "Erro ao escanear arquivos",
         )
     
     def import_from_dropbox(self, instance):
